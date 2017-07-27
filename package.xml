@@ -1,0 +1,27 @@
+<package>
+<name>cloud_tracker</name>
+  <version>1.0.0</version>
+  <description>pc_filter</description>
+  <maintainer email="jvarley@cs.columbia.edu">Jake Varley</maintainer>
+  <author>Darpa Public Use</author>
+  <license>BSD</license>
+  <url>http://ros.org/wiki/pc_filter</url>
+
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>pcl</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>tf</build_depend>
+
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>pcl</run_depend>
+  <run_depend>pcl_ros</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+
+</package>
+
+
