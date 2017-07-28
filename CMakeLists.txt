@@ -6,7 +6,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED sensor_msgs pcl_ros)
+find_package(catkin REQUIRED sensor_msgs pcl_ros dynamic_reconfigure tf )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -68,6 +68,25 @@ find_package(PCL)
 #   std_msgs  # Or other packages containing msgs
 # )
 
+################################################
+## Declare ROS dynamic reconfigure parameters ##
+################################################
+
+## To declare and build dynamic reconfigure parameters within this
+## package, follow these steps:
+## * In the file package.xml:
+##   * add a build_depend and a run_depend tag for "dynamic_reconfigure"
+## * In this file (CMakeLists.txt):
+##   * add "dynamic_reconfigure" to
+##     find_package(catkin REQUIRED COMPONENTS ...)
+##   * uncomment the "generate_dynamic_reconfigure_options" section below
+##     and list every .cfg file to be processed
+
+## Generate dynamic reconfigure parameters in the 'cfg' folder
+generate_dynamic_reconfigure_options(
+   cfg/CloudTracker.cfg
+)
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -91,7 +110,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
-include_directories(${PCL_INCLUDE_DIRS})
+include_directories(include ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 ## Declare a cpp library
@@ -99,19 +118,24 @@ add_definitions(${PCL_DEFINITIONS})
 #   src/${PROJECT_NAME}/test.cpp
 # )
 
+set(INCLUDES
+    include/cloud_tracker_node.h)
+
+set(CPPS
+    src/cloud_tracker_node.cpp)
 ## Declare a cpp executable
 # add_executable(test_node src/test_node.cpp)
-add_executable(cloud_tracker src/cloud_tracker.cpp)
+add_executable(cloud_tracker src/main.cpp ${INCLUDES} ${CPPS})
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(test_node test_generate_messages_cpp)
+add_dependencies(cloud_tracker ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(test_node
 #   ${catkin_LIBRARIES}
 # )
-target_link_libraries(cloud_tracker ${PCL_LIBS} ${catkin_LIBRARIES})
+target_link_libraries(cloud_tracker ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 #############
 ## Install ##
