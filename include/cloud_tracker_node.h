@@ -33,7 +33,7 @@ typedef pcl::tracking::ParticleFilterTracker<RefPointType, ParticleT> ParticleFi
 class CloudTrackerNode {
 
  public:
-  CloudTrackerNode(ros::NodeHandle nh = ros::NodeHandle("~"));
+  CloudTrackerNode(ros::NodeHandle nh, std::string input_cloud_topic_);
   ~CloudTrackerNode();
   void mainloop();
 

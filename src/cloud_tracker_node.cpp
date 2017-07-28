@@ -33,17 +33,15 @@
 using namespace pcl::tracking;
 
 
-CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh) :
+CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh, std::string input_cloud_topic_) :
   nh_(nh),
   reconfigure_server_(nh),
   downsampling_grid_size(0.002),
   trackedTransformMsg(tf::Quaternion(0,0,0,1), tf::Vector3(0,0,0)),
-  tracker_initialized(false)
+  tracker_initialized(false),
+  track_cloud_service_topic("/trackObject"),
+  input_cloud_topic(input_cloud_topic_)
 {
-
-  nh_.getParam("input_cloud_topic", input_cloud_topic);// /filter_pc
-  nh_.getParam("track_cloud_service_topic", track_cloud_service_topic);// /trackObject
-
   target_cloud.reset(new Cloud());
 
   trackCloudService = nh_.advertiseService(track_cloud_service_topic, &CloudTrackerNode::initializeTracker, this);
