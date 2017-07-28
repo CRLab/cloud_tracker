@@ -1,0 +1,5 @@
+#Request
+sensor_msgs/PointCloud2 objectCloud
+geometry_msgs/PoseStamped initialObjectPose
+---
+#Response

@@ -5,19 +5,22 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/mutex.hpp>
 
-#include <ros/ros.h>
-#include <dynamic_reconfigure/server.h>
-#include <sensor_msgs/PointCloud2.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
-#include <tf/transform_listener.h>
-#include <tf/transform_broadcaster.h>
-#include <cloud_tracker/CloudTrackerConfig.h>
 #include <pcl/tracking/tracking.h>
 #include <pcl/tracking/tracker.h>
 #include <pcl/tracking/kld_adaptive_particle_filter_omp.h>
 #include <pcl/tracking/particle_filter_omp.h>
+
+#include <ros/ros.h>
+#include <dynamic_reconfigure/server.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+
+#include <cloud_tracker/CloudTrackerConfig.h>
+#include <cloud_tracker/TrackCloud.h>
 
 typedef pcl::PointXYZRGB RefPointType;
 typedef pcl::PointCloud<pcl::PointXYZRGB> Cloud;
@@ -45,6 +48,8 @@ class CloudTrackerNode {
   void gridSampleApprox (const CloudConstPtr &cloud, Cloud &result, double leaf_size);
   void setObjectPose(Eigen::Affine3f &transformation);
 
+  bool initializeTracker(cloud_tracker::TrackCloud::Request  &req, cloud_tracker::TrackCloud::Response &res);
+
   // ROS Structures
   ros::NodeHandle &nh_;
 
@@ -52,6 +57,7 @@ class CloudTrackerNode {
   //this is grabbed from the ros param server.
   ros::Subscriber input_cloud_subscriber;
   std::string input_cloud_topic;
+  std::string track_cloud_service_topic;
 
   std::string camera_frame_id; //camera_rgb_optical_frame
   std::string tracked_object_frame_id; //tracked_object_frame_id
@@ -66,6 +72,10 @@ class CloudTrackerNode {
   tf::Transform trackedTransformMsg;
 
   float downsampling_grid_size;
+
+  bool tracker_initialized;
+
+  ros::ServiceServer trackCloudService;
 
   // ROS Dynamic Reconfigure
   dynamic_reconfigure::Server<cloud_tracker::CloudTrackerConfig> reconfigure_server_;

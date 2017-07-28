@@ -1,35 +1,21 @@
 #include "ros/ros.h"
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_cloud.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl_ros/transforms.h>
-#include <tf/transform_listener.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <pcl/io/pcd_io.h>
-
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/io/openni_grabber.h>
-#include <pcl/console/parse.h>
-#include <pcl/common/time.h>
-#include <pcl/common/centroid.h>
-
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/io/pcd_io.h>
-
-#include <pcl/filters/passthrough.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/approximate_voxel_grid.h>
-
-#include <pcl/sample_consensus/method_types.h>
-#include <pcl/sample_consensus/model_types.h>
-
-#include <pcl/search/pcl_search.h>
-#include <pcl/common/transforms.h>
 
 #include <boost/format.hpp>
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/common/time.h>
+#include <pcl/common/centroid.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/approximate_voxel_grid.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/search/pcl_search.h>
+#include <pcl/common/transforms.h>
 #include <pcl/tracking/coherence.h>
 #include <pcl/tracking/distance_coherence.h>
 #include <pcl/tracking/hsv_color_coherence.h>
@@ -37,7 +23,10 @@
 #include <pcl/tracking/nearest_pair_point_cloud_coherence.h>
 
 #include <tf/transform_broadcaster.h>
-#include <pcl/filters/approximate_voxel_grid.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl_ros/transforms.h>
+#include <tf/transform_listener.h>
+#include <sensor_msgs/PointCloud2.h>
 
 #include <cloud_tracker_node.h>
 
@@ -49,14 +38,25 @@ CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh) :
   reconfigure_server_(nh),
   downsampling_grid_size(0.002),
   trackedTransformMsg(tf::Quaternion(0,0,0,1), tf::Vector3(0,0,0)),
-  tracked_object_frame_id("/detected_object")
+  tracker_initialized(false)
 {
 
+  nh_.getParam("input_cloud_topic", input_cloud_topic);// /filter_pc
+  nh_.getParam("track_cloud_service_topic", track_cloud_service_topic);// /trackObject
+
   target_cloud.reset(new Cloud());
-  if(pcl::io::loadPCDFile ("/home/jvarley/pitcher_transformed2.pcd", *target_cloud) == -1){
-    std::cout << "pcd file not found" << std::endl;
-    exit(-1);
-  }
+
+  trackCloudService = nh_.advertiseService(track_cloud_service_topic, &CloudTrackerNode::initializeTracker, this);
+
+  input_cloud_subscriber = nh_.subscribe(input_cloud_topic, 1, &CloudTrackerNode::pointcloud_cb, this);
+  reconfigure_server_.setCallback(boost::bind(&CloudTrackerNode::reconfigure_cb, this, _1, _2));
+
+}
+
+
+bool CloudTrackerNode::initializeTracker(cloud_tracker::TrackCloud::Request  &req, cloud_tracker::TrackCloud::Response &res)
+{
+  tracked_object_frame_id = "/detected_object";
 
   std::vector<double> default_step_covariance = std::vector<double> (6, 0.015 * 0.015);
   default_step_covariance[3] *= 40.0;
@@ -123,11 +123,9 @@ CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh) :
   tracker_->setReferenceCloud (transed_ref_downsampled);
   tracker_->setTrans (trackedTransform);
 
-
-  input_cloud_subscriber = nh_.subscribe("/filtered_pc", 1, &CloudTrackerNode::pointcloud_cb, this);
-  reconfigure_server_.setCallback(boost::bind(&CloudTrackerNode::reconfigure_cb, this, _1, _2));
-
+  tracker_initialized = true;
 }
+
 
 void CloudTrackerNode::mainloop()
 {
@@ -136,12 +134,19 @@ void CloudTrackerNode::mainloop()
   {
     ros::spinOnce();
     loop_rate.sleep();
-    br.sendTransform(tf::StampedTransform(trackedTransformMsg, ros::Time::now(), camera_frame_id, tracked_object_frame_id));
+    if (tracker_initialized)
+      {
+        br.sendTransform(tf::StampedTransform(trackedTransformMsg, ros::Time::now(), camera_frame_id, tracked_object_frame_id));
+      }
   }
 }
 
+
 void CloudTrackerNode::pointcloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
+  if (! tracker_initialized)
+    return;
+
   camera_frame_id = cloud_msg->header.frame_id;
 
   //Convert to pcl pointcloud2
@@ -166,13 +171,12 @@ void CloudTrackerNode::pointcloud_cb(const sensor_msgs::PointCloud2ConstPtr &clo
   setObjectPose(transformation);
 }
 
+
 //update variables from config server
 void CloudTrackerNode::reconfigure_cb(cloud_tracker::CloudTrackerConfig &config, uint32_t level)
 {
     downsampling_grid_size_ = config.downsampling_grid_size;
 }
-
-
 
 
 void CloudTrackerNode::setObjectPose(Eigen::Affine3f &transformation)
@@ -193,6 +197,7 @@ void CloudTrackerNode::setObjectPose(Eigen::Affine3f &transformation)
                                       tf::Vector3(x,y,z));
 
 }
+
 
 void CloudTrackerNode::gridSampleApprox (const CloudConstPtr &cloud, Cloud &result, double leaf_size)
 {
