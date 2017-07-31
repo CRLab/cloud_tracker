@@ -39,6 +39,7 @@ CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh, std::string input_cloud_t
   downsampling_grid_size(0.002),
   trackedTransformMsg(tf::Quaternion(0,0,0,1), tf::Vector3(0,0,0)),
   tracker_initialized(false),
+  has_received_cloud(false),
   track_cloud_service_topic("/trackObject"),
   input_cloud_topic(input_cloud_topic_)
 {
@@ -46,6 +47,7 @@ CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh, std::string input_cloud_t
 
   trackCloudService = nh_.advertiseService(track_cloud_service_topic, &CloudTrackerNode::initializeTracker, this);
 
+  ROS_INFO_STREAM("Setting up pointcloud subscriber for topic: " << input_cloud_topic_ << std::endl);
   input_cloud_subscriber = nh_.subscribe(input_cloud_topic, 1, &CloudTrackerNode::pointcloud_cb, this);
   reconfigure_server_.setCallback(boost::bind(&CloudTrackerNode::reconfigure_cb, this, _1, _2));
 
@@ -54,6 +56,26 @@ CloudTrackerNode::CloudTrackerNode(ros::NodeHandle nh, std::string input_cloud_t
 
 bool CloudTrackerNode::initializeTracker(cloud_tracker::TrackCloud::Request  &req, cloud_tracker::TrackCloud::Response &res)
 {
+  ROS_INFO("Received New TrackObject Service Request");
+  ROS_INFO_STREAM("InitialPose: " << req.initialObjectPose << std::endl;);
+
+  //convert cloud and transform into camera frame to match the reference frame of the filtered pc, which we are tracking in.
+  tf::TransformListener listener;
+  tf::StampedTransform transformMsg;
+  Eigen::Matrix4f transformEigen = Eigen::Matrix4f::Identity ();
+  listener.waitForTransform(camera_frame_id,req.initialObjectPose.header.frame_id,
+                            ros::Time::now(), ros::Duration(3.0));
+  listener.lookupTransform(camera_frame_id,req.initialObjectPose.header.frame_id,
+                           ros::Time(0), transformMsg);
+
+  pcl_ros::transformAsMatrix(transformMsg, transformEigen);
+
+  pcl::PCLPointCloud2 original_pc2;
+  pcl_conversions::toPCL(req.objectCloud, original_pc2);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr original_pc(new pcl::PointCloud<pcl::PointXYZRGB>());
+  pcl::fromPCLPointCloud2(original_pc2, *original_pc);
+
+  target_cloud = original_pc;
   tracked_object_frame_id = "/detected_object";
 
   std::vector<double> default_step_covariance = std::vector<double> (6, 0.015 * 0.015);
@@ -106,16 +128,12 @@ bool CloudTrackerNode::initializeTracker(cloud_tracker::TrackCloud::Request  &re
 
   tracker_->setCloudCoherence (coherence);
 
-  //prepare the model of tracker's target
-  Eigen::Vector4f target_origin;
-  Eigen::Affine3f trackedTransform = Eigen::Affine3f::Identity ();
+  Eigen::Affine3f trackedTransform;
+  trackedTransform.matrix() = transformEigen;
   CloudPtr transed_ref (new Cloud);
   CloudPtr transed_ref_downsampled (new Cloud);
 
-  pcl::compute3DCentroid<RefPointType> (*target_cloud, target_origin);
-  trackedTransform.translation ().matrix () = Eigen::Vector3f (target_origin[0], target_origin[1], target_origin[2]);
-  pcl::transformPointCloud<RefPointType> (*target_cloud, *transed_ref, trackedTransform.inverse());
-  gridSampleApprox (transed_ref, *transed_ref_downsampled, downsampling_grid_size_);
+  gridSampleApprox (original_pc, *transed_ref_downsampled, downsampling_grid_size_);
 
   //set reference model and trans
   tracker_->setReferenceCloud (transed_ref_downsampled);
@@ -134,6 +152,10 @@ void CloudTrackerNode::mainloop()
     loop_rate.sleep();
     if (tracker_initialized)
       {
+        if(!has_received_cloud)
+          {
+            ROS_WARN_STREAM("Tracker Initialized, but we have never received a pointcloud to track the object on the topic: "  << input_cloud_topic << std::endl);
+          }
         br.sendTransform(tf::StampedTransform(trackedTransformMsg, ros::Time::now(), camera_frame_id, tracked_object_frame_id));
       }
   }
@@ -142,10 +164,11 @@ void CloudTrackerNode::mainloop()
 
 void CloudTrackerNode::pointcloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
 {
+  has_received_cloud = true;
+  camera_frame_id = cloud_msg->header.frame_id;
+
   if (! tracker_initialized)
     return;
-
-  camera_frame_id = cloud_msg->header.frame_id;
 
   //Convert to pcl pointcloud2
   pcl::PCLPointCloud2 original_pc2;

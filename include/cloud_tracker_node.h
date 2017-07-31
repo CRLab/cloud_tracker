@@ -74,6 +74,7 @@ class CloudTrackerNode {
   float downsampling_grid_size;
 
   bool tracker_initialized;
+  bool has_received_cloud;
 
   ros::ServiceServer trackCloudService;
 

@@ -7,16 +7,16 @@ int main(int argc, char** argv) {
 
   ros::NodeHandle nh = ros::NodeHandle("~");
 
-
-  std::string input_cloud_topic_;
-
-  for (int i = 0; i < argc - 1; i++)
-  {
-    if (!strcmp(argv[i], "input_cloud_topic"))
+  if(argc != 2)
     {
-      input_cloud_topic_ = argv[i + 1];
+      ROS_INFO("Need to pass the pointcloud topic to this node");
+      ROS_INFO("Ex rosrun cloud_tracker cloud_tracker /pc_filter");
+      return 0;
     }
-  }
+
+  std::string input_cloud_topic_ = argv[1];
+
+  ROS_INFO_STREAM("Starting  cloud_tracker node to listen to " << input_cloud_topic_ << std::endl);
 
   CloudTrackerNode *node = new CloudTrackerNode(nh, input_cloud_topic_);
   node->mainloop();

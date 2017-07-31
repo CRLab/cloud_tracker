@@ -1,9 +1,0 @@
-<launch>
-	<arg name="cloud_tracker/input_cloud_topic"/>
-	<arg name="cloud_tracker/track_cloud_service_topic"/>
-
-	<param name="input_cloud_topic" value="$(arg cloud_tracker/input_cloud_topic)" />
-	<param name="track_cloud_service_topic" value="$(arg cloud_tracker/track_cloud_service_topic" />
-	
-	<node name="cloud_tracker" pkg="cloud_tracker" type="cloud_tracker_node"/>
-</lauch>
